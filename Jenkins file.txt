@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+    tools {
+        maven "Maven 3.8.6"
+    }
+    stages {
+        stage('Git checkout') {
+            steps {
+                git branch: 'main', credentialsId: 'gitcred', url: 'https://github.com/jbantumelli/mvnbuild.git'
+            }
+        }
+        stage('Maven build') {
+            steps {
+                sh 'mvn clean install'
+            }
+        }
+        stage('SonarQube analysis') {
+            steps {
+                script {
+                    def scannerHome = tool name: 'sonarserver', type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+                    withSonarQubeEnv('sonarserver') {
+                        sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=sonartest -Dsonar.projectName=sonartest -Dsonar.java.binaries=/var/lib/jenkins/workspace/Demo-2/module-a/target/classes"
+                    }
+                }
+            }
+        }
+        stage('Publish to Artifactory') {
+            steps {
+                rtUpload (
+                    serverId: 'artifactory', // Replace with your actual Artifactory server ID
+                    spec: """{
+                        "files": [
+                            {
+                                "pattern": "module-a/target/*.jar",
+                                "target": "gshock"
+                            }
+                        ]
+                    }"""
+                )
+            }
+        }
+    }
+}
